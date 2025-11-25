@@ -542,6 +542,9 @@ find . -type f -name Makefile -exec sed -i -e "s/SO_MAJOR_VERSION=\s\?\([0-9]\+\
 # remove .gitignore files to ensure none get into the RPMs (bug #642210)
 find . -type f -name .gitignore | xargs rm
 
+cat > postgresql16.tmpfiles.conf <<EOF
+d /var/lib/pgsql 0700 postgres postgres -
+EOF
 
 %build
 # Avoid LTO on armv7hl as it runs out of memory
@@ -948,6 +951,8 @@ find_lang_bins pltcl.lst pltcl
 %endif
 %endif
 
+install -m0644 -D postgresql16.tmpfiles.conf %{buildroot}%{_tmpfilesdir}/postgresql16.conf
+
 %pre -n %{pkgname}-server
 /usr/sbin/groupadd -g 26 -o -r postgres >/dev/null 2>&1 || :
 /usr/sbin/useradd -M -N -g postgres -o -r -d /var/lib/pgsql -s /bin/bash \
@@ -1237,6 +1242,7 @@ make -C postgresql-setup-%{setup_version} check
 %if %pam
 %config(noreplace) /etc/pam.d/postgresql
 %endif
+%{_tmpfilesdir}/postgresql16.conf
 
 
 %files -n %{pkgname}-server-devel -f devel.lst
@@ -1334,8 +1340,11 @@ make -C postgresql-setup-%{setup_version} check
 
 
 %changelog
-* Fri Aug 15 2025 Filip Janus <fjanus@redhat.com> - 16.10-1
+* Fri Sep 5 2025 Filip Janus <fjanus@redhat.com> - 16.10-2
 - Update to 16.10
+
+* Tue Jul 22 2025 Filip Janus <fjanus@redhat.com> - 16.8-2
+- Add tmpfiles.d configuration
 
 * Wed Feb 19 2025 Filip Janus <fjanus@redhat.com> - 16.8-1
 - Update to 16.8
