@@ -47,7 +47,7 @@
 
 Summary: PostgreSQL client programs
 Name: %{majorname}%{majorversion}
-Version: %{majorversion}.10
+Version: %{majorversion}.11
 Release: 1%{?dist}
 
 # The PostgreSQL license is very similar to other MIT licenses, but the OSI
@@ -542,6 +542,10 @@ find . -type f -name Makefile -exec sed -i -e "s/SO_MAJOR_VERSION=\s\?\([0-9]\+\
 # remove .gitignore files to ensure none get into the RPMs (bug #642210)
 find . -type f -name .gitignore | xargs rm
 
+cat >postgresql16.sysusers.conf <<EOF
+u postgres 26 'PostgreSQL Server' /var/lib/pgsql /bin/bash
+EOF
+
 cat > postgresql16.tmpfiles.conf <<EOF
 d /var/lib/pgsql 0700 postgres postgres -
 EOF
@@ -712,6 +716,7 @@ upgrade_configure ()
 		--disable-rpath \
 		--with-lz4 \
 		--with-zstd \
+        --with-openssl \
 %if %icu
 		--with-icu \
 %endif
@@ -953,10 +958,12 @@ find_lang_bins pltcl.lst pltcl
 
 install -m0644 -D postgresql16.tmpfiles.conf %{buildroot}%{_tmpfilesdir}/postgresql16.conf
 
+install -m0644 -D postgresql16.sysusers.conf %{buildroot}%{_sysusersdir}/postgresql16.conf
+
 %pre -n %{pkgname}-server
 /usr/sbin/groupadd -g 26 -o -r postgres >/dev/null 2>&1 || :
 /usr/sbin/useradd -M -N -g postgres -o -r -d /var/lib/pgsql -s /bin/bash \
-	-c "PostgreSQL Server" -u 26 postgres >/dev/null 2>&1 || :
+ -c "PostgreSQL Server" -u 26 postgres >/dev/null 2>&1 || :
 
 %post -n %{pkgname}-server
 %systemd_post %service_name
@@ -1243,6 +1250,7 @@ make -C postgresql-setup-%{setup_version} check
 %config(noreplace) /etc/pam.d/postgresql
 %endif
 %{_tmpfilesdir}/postgresql16.conf
+%{_sysusersdir}/postgresql16.conf
 
 
 %files -n %{pkgname}-server-devel -f devel.lst
@@ -1340,7 +1348,19 @@ make -C postgresql-setup-%{setup_version} check
 
 
 %changelog
-* Fri Sep 5 2025 Filip Janus <fjanus@redhat.com> - 16.10-2
+* Mon Dec 01 2025 Filip Janus <fjanus@redhat.com> - 16.11-1
+- Update to 16.11
+
+* Mon Nov 10 2025 Filip Janus <fjanus@redhat.com> - 16.10-3
+- Add tmpfiles.d configuration for PostgreSQL 16
+- Ensures proper directory permissions for /var/lib/pgsql
+
+* Wed Oct  1 2025 Filip Janus <fjanus@redhat.com> - 16.10-2
+- Add OpenSSL support to upgrade_configure function
+- This ensures upgrade server is compiled with OpenSSL support
+- Required for SSL/TLS connections during database upgrades
+
+* Fri Sep 5 2025 Filip Janus <fjanus@redhat.com> - 16.10-1
 - Update to 16.10
 
 * Tue Jul 22 2025 Filip Janus <fjanus@redhat.com> - 16.8-2
