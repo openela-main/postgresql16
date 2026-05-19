@@ -1353,10 +1353,12 @@ make -C postgresql-setup-%{setup_version} check
 - Fix CVE-2026-2004: PostgreSQL intarray missing validation of type of input
 - Fix CVE-2026-2005: PostgreSQL pgcrypto heap buffer overflow
 - Fix CVE-2026-2006: PostgreSQL missing validation of multibyte character length
-- Resolves: RHEL-149364 RHEL-149398 RHEL-149332
+- Resolves: RHEL-149365 RHEL-149399 RHEL-149333
 
 * Mon Dec 01 2025 Filip Janus <fjanus@redhat.com> - 16.11-1
 - Update to 16.11
+- Resolves: RHEL-128802 (CVE-2025-12818) [rhel-10.2]
+- Resolves: RHEL-128801 (CVE-2025-12818) [rhel-10.1.z]
 
 * Mon Nov 10 2025 Filip Janus <fjanus@redhat.com> - 16.10-3
 - Add tmpfiles.d configuration for PostgreSQL 16
