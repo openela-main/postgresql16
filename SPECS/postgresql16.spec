@@ -47,7 +47,7 @@
 
 Summary: PostgreSQL client programs
 Name: %{majorname}%{majorversion}
-Version: %{majorversion}.13
+Version: %{majorversion}.14
 Release: 1%{?dist}
 
 # The PostgreSQL license is very similar to other MIT licenses, but the OSI
@@ -1348,6 +1348,10 @@ make -C postgresql-setup-%{setup_version} check
 
 
 %changelog
+* Wed May 28 2026 Filip Janus <fjanus@redhat.com> - 16.14-1
+- Update to 16.14
+- Fix CVE-2026-6478
+
 * Fri Feb 27 2026 Filip Janus <fjanus@redhat.com> - 16.13-1
 - Update to 16.13
 - Fix CVE-2026-2004: PostgreSQL intarray missing validation of type of input
