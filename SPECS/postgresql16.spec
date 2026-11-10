@@ -48,7 +48,7 @@
 Summary: PostgreSQL client programs
 Name: %{majorname}%{majorversion}
 Version: %{majorversion}.15
-Release: 1%{?dist}
+Release: 2%{?dist}
 
 # The PostgreSQL license is very similar to other MIT licenses, but the OSI
 # recognizes it as an independent license, so we do as well.
@@ -95,6 +95,8 @@ Patch9: postgresql-server-pg_config.patch
 # rhbz#1940964
 Patch10: postgresql-datalayout-mismatch-on-s390.patch
 Patch12: postgresql-no-libecpg.patch
+Patch13: postgresql-pqc-ssl-groups-v2.patch
+Patch14: postgresql-pqc-ssl-groups-tests.patch
 
 # This macro is used for package names in the files section
 %if %?postgresql_default
@@ -112,6 +114,7 @@ BuildRequires: libzstd-devel
 BuildRequires: gcc
 BuildRequires: perl(ExtUtils::MakeMaker) glibc-devel bison flex gawk
 BuildRequires: perl(ExtUtils::Embed), perl-devel
+BuildRequires: perl(FindBin)
 BuildRequires: perl(Opcode)
 %if 0%{?fedora} || 0%{?rhel} > 7
 BuildRequires: perl-generators
@@ -519,6 +522,8 @@ goal of accelerating analytics queries.
 %endif
 %patch 9 -p1
 %patch 10 -p1
+%patch 13 -p1
+%patch 14 -p1
 
 
 %if ! %external_libpq
@@ -548,6 +553,7 @@ EOF
 
 cat > postgresql16.tmpfiles.conf <<EOF
 d /var/lib/pgsql 0700 postgres postgres -
+f /var/lib/pgsql/.bash_profile 0644 postgres postgres - "[ -f /etc/profile ] && source /etc/profile\nPGDATA=/var/lib/pgsql/data\nexport PGDATA"
 EOF
 
 %build
@@ -1348,12 +1354,31 @@ make -C postgresql-setup-%{setup_version} check
 
 
 %changelog
-* Sun Sep 07 2026 Filip Janus <fjanus@redhat.com> - 16.15-1
+* Thu Oct 1 2026 Filip Janus <fjanus@redhat.com> - 16.15-2
+- Release bump - konflux rebuild
+
+* Thu Oct 1 2026 Filip Janus <fjanus@redhat.com> - 16.15-1
 - Update to 16.15
 
-* Wed May 28 2026 Filip Janus <fjanus@redhat.com> - 16.14-1
+* Mon Jul 20 2026 Filip Janus <fjanus@redhat.com> - 16.14-3
+- Add SSL test coverage for colon-separated ssl_ecdh_curve group list
+- Backport test from upstream commit 3d1ef3a15c3 (adapted for PG16)
+- Resolves: RHEL-119229
+
+* Mon Jul 20 2026 Filip Janus <fjanus@redhat.com> - 16.14-2
+- Enable PQC-compatible TLS group negotiation via ssl_ecdh_curve
+- Backport SSL_CTX_set1_groups_list() from PG18 (upstream commit 3d1ef3a15c3)
+- Backport SSLerrmessageExt() helper for improved error reporting
+- Update GUC description to document colon-separated group list support
+- Resolves: RHEL-119229
+
+* Tue Jul 14 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 16.14-1
 - Update to 16.14
-- Fix CVE-2026-6478
+- Add BuildRequires: perl(FindBin) for Perl 5.40 compatibility
+- Resolves: RHEL-208694
+
+* Mon Mar 16 2026 Nikola Davidova <ndavidov@redhat.com> - 16.13-2
+- Release bump for bash-profile fix for imagemode
 
 * Fri Feb 27 2026 Filip Janus <fjanus@redhat.com> - 16.13-1
 - Update to 16.13

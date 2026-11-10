@@ -1,0 +1,119 @@
+--- a/src/backend/libpq/be-secure-openssl.c	2025-02-17 16:14:22.000000000 -0500
++++ b/src/backend/libpq/be-secure-openssl.c	2026-03-30 14:33:40.542000000 -0400
+@@ -46,9 +46,6 @@
+ #include "common/openssl.h"
+ #include <openssl/conf.h>
+ #include <openssl/dh.h>
+-#ifndef OPENSSL_NO_ECDH
+-#include <openssl/ec.h>
+-#endif
+ #include <openssl/x509v3.h>
+ 
+ 
+@@ -69,6 +66,7 @@
+ static void info_cb(const SSL *ssl, int type, int args);
+ static bool initialize_dh(SSL_CTX *context, bool isServerStart);
+ static bool initialize_ecdh(SSL_CTX *context, bool isServerStart);
++static const char *SSLerrmessageExt(unsigned long ecode, const char *replacement);
+ static const char *SSLerrmessage(unsigned long ecode);
+ 
+ static char *X509_NAME_to_cstring(const X509_NAME *name);
+@@ -1213,41 +1211,55 @@
+  * Set ECDH parameters for generating ephemeral Elliptic Curve DH
+  * keys.  This is much simpler than the DH parameters, as we just
+  * need to provide the name of the curve to OpenSSL.
++ *
++ * Unlike the pre-PG18 implementation that used OBJ_sn2nid() and
++ * EC_KEY_new_by_curve_name() which only accepted a single curve,
++ * SSL_CTX_set1_groups_list() accepts a colon-separated list of
++ * group names, enabling post-quantum hybrid key exchange groups
++ * such as X25519MLKEM768.
+  */
+ static bool
+ initialize_ecdh(SSL_CTX *context, bool isServerStart)
+ {
+ #ifndef OPENSSL_NO_ECDH
+-	EC_KEY	   *ecdh;
+-	int			nid;
+-
+-	nid = OBJ_sn2nid(SSLECDHCurve);
+-	if (!nid)
+-	{
+-		ereport(isServerStart ? FATAL : LOG,
+-				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+-				 errmsg("ECDH: unrecognized curve name: %s", SSLECDHCurve)));
+-		return false;
+-	}
+-
+-	ecdh = EC_KEY_new_by_curve_name(nid);
+-	if (!ecdh)
++	if (SSL_CTX_set1_groups_list(context, SSLECDHCurve) != 1)
+ 	{
+ 		ereport(isServerStart ? FATAL : LOG,
+ 				(errcode(ERRCODE_CONFIG_FILE_ERROR),
+-				 errmsg("ECDH: could not create key")));
++				 errmsg("ECDH: could not set group names from ssl_ecdh_curve: %s",
++						SSLerrmessageExt(ERR_get_error(),
++										 _("No valid groups found"))),
++				 errhint("Ensure that each group name is spelled correctly and supported by the installed version of OpenSSL.")));
+ 		return false;
+ 	}
+-
+-	SSL_CTX_set_options(context, SSL_OP_SINGLE_ECDH_USE);
+-	SSL_CTX_set_tmp_ecdh(context, ecdh);
+-	EC_KEY_free(ecdh);
+ #endif
+ 
+ 	return true;
+ }
+ 
+ /*
++ * Obtain reason string for passed SSL errcode with replacement
++ *
++ * The error message supplied in replacement will be used in case the error
++ * code from OpenSSL is 0, else the error message from SSLerrmessage() will
++ * be returned.
++ *
++ * Not all versions of OpenSSL place an error on the queue even for failing
++ * operations, which will yield "no SSL error reported" by SSLerrmessage.
++ * This function can be used to ensure that a proper error message is displayed
++ * for versions reporting no error, while using the OpenSSL error via
++ * SSLerrmessage for versions where there is one.
++ */
++static const char *
++SSLerrmessageExt(unsigned long ecode, const char *replacement)
++{
++	if (ecode == 0)
++		return replacement;
++	else
++		return SSLerrmessage(ecode);
++}
++
++/*
+  * Obtain reason string for passed SSL errcode
+  *
+  * ERR_get_error() is used by caller to get errcode to pass here.
+--- a/src/backend/utils/misc/guc_tables.c	2025-02-17 16:14:22.000000000 -0500
++++ b/src/backend/utils/misc/guc_tables.c	2026-03-30 14:32:36.585000000 -0400
+@@ -4459,8 +4459,8 @@
+ 
+ 	{
+ 		{"ssl_ecdh_curve", PGC_SIGHUP, CONN_AUTH_SSL,
+-			gettext_noop("Sets the curve to use for ECDH."),
+-			NULL,
++			gettext_noop("Sets the group(s) to use for key exchange."),
++			gettext_noop("Multiple groups can be specified using a colon-separated list."),
+ 			GUC_SUPERUSER_ONLY
+ 		},
+ 		&SSLECDHCurve,
+--- a/src/backend/utils/misc/postgresql.conf.sample	2025-02-17 16:14:22.000000000 -0500
++++ b/src/backend/utils/misc/postgresql.conf.sample	2026-03-30 14:32:36.587000000 -0400
+@@ -110,7 +110,7 @@
+ #ssl_key_file = 'server.key'
+ #ssl_ciphers = 'HIGH:MEDIUM:+3DES:!aNULL' # allowed SSL ciphers
+ #ssl_prefer_server_ciphers = on
+-#ssl_ecdh_curve = 'prime256v1'
++#ssl_ecdh_curve = 'prime256v1'		# colon-separated list of group names
+ #ssl_min_protocol_version = 'TLSv1.2'
+ #ssl_max_protocol_version = ''
+ #ssl_dh_params_file = ''

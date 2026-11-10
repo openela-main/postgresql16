@@ -1,0 +1,37 @@
+--- a/src/test/ssl/t/001_ssltests.pl
++++ b/src/test/ssl/t/001_ssltests.pl
+@@ -120,6 +120,22 @@
+ command_ok(
+ 	[ 'pg_ctl', '-D', $node->data_dir, '-l', $node->logfile, 'restart' ],
+ 	'restart succeeds with correct SSL protocol bounds');
++
++# Test parsing colon-separated groups in ssl_ecdh_curve. Writing to
++# sslconfig.conf ensures these values get overwritten by the next call to
++# switch_server_cert (which truncates and rewrites sslconfig.conf).
++$node->append_conf('sslconfig.conf', qq{ssl_ecdh_curve='bad:value'});
++my $log_size = -s $node->logfile;
++command_fails(
++	[ 'pg_ctl', '-D', $node->data_dir, '-l', $node->logfile, 'restart' ],
++	'restart fails with incorrect ECDH groups');
++ok( $node->log_contains(
++		qr/ECDH: could not set group names from ssl_ecdh_curve/, $log_size),
++	'error message mentions ssl_ecdh_curve');
++$node->append_conf('sslconfig.conf', qq{ssl_ecdh_curve='prime256v1'});
++command_ok(
++	[ 'pg_ctl', '-D', $node->data_dir, '-l', $node->logfile, 'restart' ],
++	'restart succeeds after correcting ssl_ecdh_curve');
+ 
+ ### Run client-side tests.
+ ###
+
+--- a/src/test/ssl/t/SSL/Server.pm
++++ b/src/test/ssl/t/SSL/Server.pm
+@@ -299,6 +299,8 @@
+ 	open my $sslconf, '>', "$pgdata/sslconfig.conf";
+ 	print $sslconf "ssl=on\n";
+ 	print $sslconf $backend->set_server_cert(\%params);
++	# use lists of ECDH curves for syntax testing
++	print $sslconf "ssl_ecdh_curve='prime256v1:secp521r1'\n";
+ 	print $sslconf "ssl_passphrase_command='"
+ 	  . $params{passphrase_cmd} . "'\n"
+ 	  if defined $params{passphrase_cmd};
